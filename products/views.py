@@ -35,3 +35,15 @@ def hashtag_view(request):
         }
 
         return render(request, 'products/hashtags.html', context=context)
+
+def product_detail_view(request, id):
+    if request.method == 'GET':
+        post = Product.objects.get(id=id)
+
+
+        context = {
+            'post': post,
+            'comments': post.comment_set.all()
+        }
+
+        return render(request, 'products/detail.html', context=context)
