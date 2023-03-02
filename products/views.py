@@ -22,7 +22,8 @@ def products_view(request):
                     'price': product.price,
                     'hashtags': product.hashtags.all()
                 } for product in products
-            ]
+            ],
+            'user': request.user
         }
 
         return render(request, 'products/products.html', context=contex)
