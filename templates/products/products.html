@@ -30,4 +30,13 @@
             </div>
         {% endfor %}
     </div>
+
+    <div class="pages">
+        {% for page in pages %}
+            <a href="/products/?page={{ page }}">
+                <button class="page_button">{{ page }}</button>
+            </a>
+        {% endfor %}
+    </div>
+
 {% endblock %}
