@@ -1,25 +1,29 @@
 from django.shortcuts import render, redirect
-
-from products.constants import PAGINATION_LIMIT
 from products.models import Product, Hashtag, Review
-from products.forms import ProductCreateForm, ReviewCreateForm
+from .forms import ProductCreateForm, ReviewCreateForm
+from products.constants import PAGINATION_LIMIT
+from django.views.generic import ListView, CreateView, DetailView
 
 
-def main_page_view(request):
-    if request.method == 'GET':
-        return render(request, 'layouts/index.html')
+class MainCBV(ListView):
+    model = Product
+    template_name = 'layouts/index.html'
 
 
-def products_view(request):
-    if request.method == 'GET':
-        products = Product.objects.all()
+class ProductCBV(ListView):
+    model = Product
+    template_name = 'products/products.html'
+    context_object_name = 'products'
+
+    def get(self, request, **kwargs):
+        products = self.get_queryset()
         search = request.GET.get('search')
         page = int(request.GET.get('page', 1))
+
         if search:
             products = products.filter(title__contains=search) | products.filter(description__contains=search)
 
         max_page = products.__len__() / PAGINATION_LIMIT
-
         if round(max_page) < max_page:
             max_page = round(max_page) + 1
         else:
@@ -39,37 +43,40 @@ def products_view(request):
                 } for product in products
             ],
             'user': request.user,
-            'pages': range(1, max_page+1)
+            'pages': range(1, max_page + 1)
         }
 
-        return render(request, 'products/products.html', context=contex)
+        return render(request, self.template_name, context=contex)
 
 
-def hashtag_view(request):
-    if request.method == 'GET':
-        hashtags = Hashtag.objects.all()
+class HashtagsCBV(ListView):
+    model = Hashtag
+    template_name = 'products/hashtags.html'
 
+    def get(self, request, **kwargs):
+        hashtags = self.get_queryset()
         context = {
             'hashtags': hashtags
         }
 
-        return render(request, 'products/hashtags.html', context=context)
+        return render(request, self.template_name, context=context)
 
 
-def product_detail_view(request, id):
-    if request.method == 'GET':
-        product = Product.objects.get(id=id)
+class ProductDetailCBV(DetailView, CreateView):
+    model = Product
+    template_name = 'products/detail.html'
+    form_class = ReviewCreateForm
+    pk_url_kwarg = 'id'
 
-        context = {
-            'product': product,
-            'reviews': product.review_set.all,
-            'form': ReviewCreateForm
+    def get_context_data(self, *, object_list=None, **kwargs):
+        return {
+            'product': self.get_object(),
+            'reviews': Review.objects.filter(product=self.get_object()),
+            'form': kwargs.get('form', self.form_class)
         }
 
-        return render(request, 'products/detail.html', context=context)
+    def post(self, request, **kwargs):
 
-    if request.method == 'POST':
-        product = Product.objects.get(id=id)
         data = request.POST
         form = ReviewCreateForm(data=data)
 
@@ -77,28 +84,29 @@ def product_detail_view(request, id):
             Review.objects.create(
                 text=form.cleaned_data.get('text'),
                 rate=form.cleaned_data.get('rate'),
-                product=product
+                product_id=self.get_object().id
             )
+            return redirect(f'/products/{self.get_object().id}/')
 
-            context = {
-                'product': product,
-                'reviews': product.review_set.all(),
-                'form': form
-            }
-
-            return render(request, 'products/detail.html', context=context)
+        return render(request, self.template_name, context=self.get_context_data(
+            form=form
+        ))
 
 
-def create_product_view(request):
-    if request.method == 'GET':
+class CreateProductCBV(ListView, CreateView):
+    model = Product
+    template_name = 'products/create.html'
+    form_class = ProductCreateForm
 
-        context = {
-            'form': ProductCreateForm
+    def get_context_data(self, *, object_list=None, **kwargs):
+        return {
+            'form': self.form_class if not kwargs.get('form') else kwargs['form']
         }
 
-        return render(request, 'products/create.html', context=context)
+    def get(self, request, **kwargs):
+        return render(request, self.template_name, context=self.get_context_data())
 
-    if request.method == 'POST':
+    def post(self, request, **kwargs):
         data, files = request.POST, request.FILES
 
         form = ProductCreateForm(data, files)
@@ -113,6 +121,6 @@ def create_product_view(request):
             )
             return redirect('/products')
 
-        return render(request, 'products/create.html', context={
-            'form': form
-        })
+        return render(request, self.template_name, context=self.get_context_data(
+            form=form
+        ))
